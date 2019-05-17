@@ -316,7 +316,7 @@ class QnliProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), 
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")),
             "dev_matched")
 
     def get_labels(self):
@@ -399,6 +399,31 @@ class WnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(
                 InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+        return examples
+
+
+class SCTProcessor(DataProcessor):
+    """Processor for the SCT data set."""
+
+    def get_train_examples(self, data_dir):
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+
+    def get_dev_examples(self, data_dir):
+        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_labels(self):
+        return ["0", "1"]
+
+    def _create_examples(self, lines, set_type):
+        examples = []
+        for (i, line) in enumerate(lines):
+            if i == 0:
+                continue
+            guid = "%s-%s" % (set_type, i)
+            text_a = line[0]
+            text_b = line[1]
+            label = "0" if line[2] == "True" else "1"
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
 
@@ -557,6 +582,8 @@ def compute_metrics(task_name, preds, labels):
         return {"acc": simple_accuracy(preds, labels)}
     elif task_name == "wnli":
         return {"acc": simple_accuracy(preds, labels)}
+    elif task_name == "sct":
+        return {"acc": simple_accuracy(preds, labels)}
     else:
         raise KeyError(task_name)
 
@@ -671,6 +698,7 @@ def main():
         "qnli": QnliProcessor,
         "rte": RteProcessor,
         "wnli": WnliProcessor,
+        "sct": SCTProcessor,
     }
 
     output_modes = {
@@ -683,6 +711,7 @@ def main():
         "qnli": "classification",
         "rte": "classification",
         "wnli": "classification",
+        "sct": "classification",
     }
 
     if args.local_rank == -1 or args.no_cuda:
@@ -923,7 +952,7 @@ def main():
             elif output_mode == "regression":
                 loss_fct = MSELoss()
                 tmp_eval_loss = loss_fct(logits.view(-1), label_ids.view(-1))
-            
+
             eval_loss += tmp_eval_loss.mean().item()
             nb_eval_steps += 1
             if len(preds) == 0:
@@ -991,10 +1020,10 @@ def main():
 
                 with torch.no_grad():
                     logits = model(input_ids, segment_ids, input_mask, labels=None)
-            
+
                 loss_fct = CrossEntropyLoss()
                 tmp_eval_loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
-            
+
                 eval_loss += tmp_eval_loss.mean().item()
                 nb_eval_steps += 1
                 if len(preds) == 0:
@@ -1019,6 +1048,7 @@ def main():
                 for key in sorted(result.keys()):
                     logger.info("  %s = %s", key, str(result[key]))
                     writer.write("%s = %s\n" % (key, str(result[key])))
+
 
 if __name__ == "__main__":
     main()
